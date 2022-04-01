@@ -10,6 +10,9 @@ from bayesmark.experiment import experiment_main
 import optuna
 from optuna import pruners
 from optuna import samplers
+from optuna.integration.botorch import BoTorchSampler
+from optuna.integration.cma import PyCmaSampler
+from optuna.integration.skopt import SkoptSampler
 
 
 _SAMPLERS = {
@@ -18,6 +21,10 @@ _SAMPLERS = {
     "TPESampler": samplers.TPESampler,
     "CmaEsSampler": samplers.CmaEsSampler,
     "NSGAIISampler": samplers.NSGAIISampler,
+    "QMCSampler": samplers.QMCSampler,
+    "BoTorchSampler": BoTorchSampler,
+    "PyCmaSampler": PyCmaSampler,
+    "SkoptSampler": SkoptSampler,
 }
 
 _PRUNERS = {
@@ -74,6 +81,7 @@ class OptunaOptimizer(AbstractOptimizer):
             log = config["space"] == "log"
 
             if config["space"] == "logit":
+                assert 0 < low <= high < 1
                 low = np.log(low / (1 - low))
                 high = np.log(high / (1 - high))
 
