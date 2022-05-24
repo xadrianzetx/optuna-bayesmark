@@ -138,9 +138,9 @@ class DewanckerRanker:
 
     def _set_borda(self, wins: Dict[str, int]) -> None:
 
-        all_wins = np.array(sorted(wins.values()))
-        num_wins, num_ties = np.unique(all_wins, return_counts=True)
-        points = np.searchsorted(all_wins, num_wins)
+        sorted_wins = np.array(sorted(wins.values()))
+        num_wins, num_ties = np.unique(sorted_wins, return_counts=True)
+        points = np.searchsorted(sorted_wins, num_wins)
         self._borda = np.repeat(points, num_ties)[::-1]
 
     def rank(self, report: PartialReport) -> None:
@@ -215,6 +215,14 @@ class BayesmarkReportBuilder:
             row_buffer.close()
 
         self._problems_counter += 1
+        return self
+
+    def update_leaderboard(self, ranking: DewanckerRanker) -> "BayesmarkReportBuilder":
+
+        for solver, borda in ranking:
+            if borda == max(ranking.borda):
+                self._firsts[solver] += 1
+            self._borda[solver] += borda
         return self
 
     def add_dataset(self, dataset: str) -> "BayesmarkReportBuilder":
