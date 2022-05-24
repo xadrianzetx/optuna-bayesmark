@@ -182,5 +182,6 @@ if __name__ == "__main__":
     os.makedirs("partial", exist_ok=True)
 
     run_benchmark(args)
-    make_plots(args)
     partial_report(args)
+    make_plots(args)
+
