@@ -246,7 +246,7 @@ class BayesmarkReportBuilder:
             row = f"|{solver}|{self._borda[solver]}|{self._firsts[solver]}|"
             overall_body.write("".join([row, _LINE_BREAK]))
 
-        with open("report_template.md") as file:
+        with open(os.path.join("benchmarks", "bayesmark", "report_template.md")) as file:
             report_template = file.read()
 
         # TODO(xadrianzetx) Consider using proper templating engine.
