@@ -50,7 +50,7 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Install Python libralies
+    - name: Install Python libraries
       run: |
         python -m pip install --upgrade pip
         pip install --progress-bar off -U setuptools wheel
@@ -74,12 +74,14 @@ jobs:
           --pruner-kwargs-list '${{ github.event.inputs.pruner-kwargs-list }}' \
           --plot-warmup '${{ github.event.inputs.plot-warmup }}'
     
-    - uses: actions/upload-artifact@v2
+    - name: Upload plot
+      uses: actions/upload-artifact@v2
       with:
         name: benchmark-plots
         path: plots
     
-    - uses: actions/upload-artifact@v2
+    - name: Upload partial report
+      uses: actions/upload-artifact@v2
       with:
         name: partial-reports
         path: partial
@@ -98,11 +100,10 @@ jobs:
         name: partial-reports
         path: partial
     
-    - name: Install Python libralies
+    - name: Install Python libraries
       run: |
         python -m pip install --upgrade pip
-        pip install --progress-bar off -U setuptools wheel
-        pip install --progress-bar off numpy scipy pandas
+        pip install --progress-bar off -U setuptools wheel numpy scipy pandas
 
     - name: Run benchmark report builder
       run: |
