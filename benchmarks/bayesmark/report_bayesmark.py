@@ -6,6 +6,8 @@ import os
 from typing import Dict
 from typing import Generator
 from typing import List
+from typing import Optional
+from typing import Set
 from typing import Tuple
 
 import numpy as np
@@ -20,6 +22,7 @@ _HEADER_FORMAT = "|:---|---:|"
 _OVERALL_HEADER = "|Solver|Borda|Firsts|\n|:---|---:|---:|\n"
 
 Moments = Tuple[float, float]
+Samples = Dict[str, List[float]]
 
 
 class BaseMetric(ABC):
@@ -28,7 +31,7 @@ class BaseMetric(ABC):
         """Metric name displayed in final report."""
 
     def calculate(self, data: pd.DataFrame) -> List[float]:
-        """Calculates per-study statistics."""
+        """Calculates metric for each study in data frame."""
 
 
 class BestValueMetric(BaseMetric):
@@ -64,6 +67,7 @@ class ElapsedMetric(BaseMetric):
 
 class PartialReport:
     def __init__(self, data: pd.DataFrame) -> None:
+
         self._data = data
 
     @property
@@ -86,9 +90,9 @@ class PartialReport:
         run_metrics = metric.calculate(solver_data)
         return np.mean(run_metrics), np.var(run_metrics)
 
-    def average_performance(self, metric: BaseMetric) -> Dict[str, float]:
+    def sample_performance(self, metric: BaseMetric) -> Samples:
 
-        performance: Dict[str, float] = {}
+        performance: Dict[str, List[float]] = {}
         for solver, data in self._data.groupby("opt"):
             run_metrics = metric.calculate(data)
             performance[solver] = run_metrics
@@ -98,8 +102,8 @@ class PartialReport:
 class DewanckerRanker:
     def __init__(self, metrics: List[BaseMetric]) -> None:
         self._metrics = metrics
-        self._ranking = None
-        self._borda = None
+        self._ranking: Optional[List[str]] = None
+        self._borda: Optional[np.ndarray] = None
 
     def __iter__(self) -> Generator[Tuple[str, int], None, None]:
 
@@ -122,7 +126,7 @@ class DewanckerRanker:
     @staticmethod
     def pick_alpha(report: PartialReport) -> float:
 
-        # Ref: https://github.com/optuna/kurobako/blob/788dd4cf618965a4a5158aa4e13607a5803dea9d/src/report.rs#L412-L424
+        # https://github.com/optuna/kurobako/blob/788dd4cf618965a4a5158aa4e13607a5803dea9d/src/report.rs#L412-L424  # noqa E501
         num_optimizers = len(report.optimizers)
         candidates = [0.075, 0.05, 0.025, 0.01] * 4 / np.repeat([1, 10, 100, 1000], 4)
 
@@ -147,16 +151,16 @@ class DewanckerRanker:
 
         # Implements Section 2.1.1
         # https://proceedings.mlr.press/v64/dewancker_strategy_2016.pdf
-        wins = defaultdict(int)
+        wins: Dict[str, int] = defaultdict(int)
         alpha = DewanckerRanker.pick_alpha(report)
         for metric in self._metrics:
-            summaries = report.average_performance(metric)
-            for optim_a, optim_b in itertools.permutations(summaries, 2):
-                _, p_val = mannwhitneyu(summaries[optim_a], summaries[optim_b], alternative="less")
+            samples = report.sample_performance(metric)
+            for optim_a, optim_b in itertools.permutations(samples, 2):
+                _, p_val = mannwhitneyu(samples[optim_a], samples[optim_b], alternative="less")
                 if p_val < alpha:
                     wins[optim_a] += 1
 
-            all_wins = [wins[optimizer] for optimizer in summaries]
+            all_wins = [wins[optimizer] for optimizer in report.optimizers]
             no_ties = len(all_wins) == len(np.unique(all_wins))
             if no_ties:
                 break
@@ -169,11 +173,11 @@ class DewanckerRanker:
 class BayesmarkReportBuilder:
     def __init__(self) -> None:
 
-        self._solvers = set()
-        self._datasets = set()
-        self._models = set()
-        self._firsts = defaultdict(int)
-        self._borda = defaultdict(int)
+        self._solvers: Set[str] = set()
+        self._datasets: Set[str] = set()
+        self._models: Set[str] = set()
+        self._firsts: Dict[str, int] = defaultdict(int)
+        self._borda: Dict[str, int] = defaultdict(int)
         self._metric_precedence = str()
         self._problems_counter = 1
         self._problems_body = io.StringIO()
@@ -268,9 +272,7 @@ class BayesmarkReportBuilder:
 def build_report() -> None:
 
     # Order of this list sets metric precedence.
-    # Elapsed time is not used as a voting metric, but shown in report
-    # so it gets added to metric pool *after* ranking was calculated.
-    # Ref: https://proceedings.mlr.press/v64/dewancker_strategy_2016.pdf
+    # https://proceedings.mlr.press/v64/dewancker_strategy_2016.pdf
     metrics = [BestValueMetric(), AUCMetric()]
     report_builder = BayesmarkReportBuilder()
     report_builder.set_precedence(metrics)
@@ -284,6 +286,8 @@ def build_report() -> None:
         ranking = DewanckerRanker(metrics)
         ranking.rank(partial)
 
+        # Elapsed time is not used as a voting metric, but shown in report
+        # so it gets added to metric pool *after* ranking was calculated.
         elapsed = ElapsedMetric()
         all_metrics = [*metrics, elapsed]
 
